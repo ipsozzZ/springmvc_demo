@@ -373,7 +373,7 @@ public ModelAndView secondMethod(String user){
 
 ```
 
-**HiddenHttpMethodFilter源码**
+**HiddenHttpMethodFilter源码**：
 
 可以在ctrl+单击，进入源码，查看源码
 
@@ -725,3 +725,334 @@ public void testModelAttribute1(Model model){
 1. 在@ModelAttribute修饰的方法执行时会自动将已有的session存入model中
 
 2. 之前说过在@ModelAttribute修饰的方法存属性时，如果在后续执行@RequestMapping时出现key值重复，则会覆盖掉该key值的属性，但是如果该key值对应存的是模型数据且存的不是session域时，key值覆盖并不是完全覆盖，比如模型类有三个属性，我在@ModelAttribute修饰的方法中给三个属性都赋值，并存入了model中，当在@RequestMapping标记的控制器中接收用户的参数使用同一个模型，并且用户只传类两个属性的值，也使用了Model模型存该模型，模型名也没有改变(使用默认的将模型名小写形式作为key)，所以在@ModelAttribute修饰的方法中存的模型传值的两个属性将被覆盖，而没有传值的那个属性将继续使用原来在@ModelAttribute修饰的方法中设定的值，但是注意的是如果在在@ModelAttribute修饰的方法中存的是session域的话，模型的所有属性都将被替换，没有传的属性使用null代替。
+
+## # form标签与验证
+
+### mvc:view-controller 从jsp跳转到jsp
+
+我们知道jsp点击跳转链接时，springmvc会根据url去@Controller修饰的类中找@RequestMapping修饰的方法,如果找到方法则执行方法中的代码，再return到对应的结果视图(jsp页面)，如果找不到方法就会去扫面springmvc.xml配置文件(名字不一定是springmvc.xml,这是自定义的)中的
+```<mvc:view-controller path="" view-name="" />``` 有没有配置，都没有就弹出错误页。
+
+利用以上的原理，我们配置mvc:view-controller就可以实现从jsp跳转到jsp页了,其中path请求的路径，view-name是要跳转的view视图jsp
+
+**特别注意的点**：如果使用了在配置文件中使用了mvc:view-controller，则默认springmvc将不再扫描Controller中的RequestMapping,即在Controller中的地址映射将不再起作用，并且如果在配置文件中配置了视图解析器的前后缀，默认也不会再起作用，解决方法是在配置文件中添加
+```<mvc:annotation-driven />```就可以解决上面的问题了，此处还有个注意的点是，如果配置了视图解析器的前后缀并且也解决了上述问题，则
+```mvc:view-controller```的view-name属性(跳转视图的路径)springmvc也会加上配置好的视图解析器前后缀。
+
+**原因**：如果springmvc.xml中什么都不配置时：springmvc会默认自动注册三个Bean(即：RequestMappingHandlerMapping、RequestMappingHandlerAdapter、ExceptionHandlerExceptionResolver)，但是如果使用mvc:view-controller就会导致springmvc不加载这三个Bean中的RequestMappingHandlerMapping，所以就不会扫描RequestMapping修饰的方法。可以用```<mvc:annotation-driven />```解决，它让springmvc再注册这三个Bean。
+
+### mvc:annotation-driven的作用(开发中一般都会加上)
+
+```<mvc:annotation-driven />```1.是一种简写形式；2.会自动默认自动注册三个Bean(即：RequestMappingHandlerMapping、RequestMappingHandlerAdapter、ExceptionHandlerExceptionResolver)；3.提供了：数据绑定支持；@NumberFormatannotation支持；@DateTimeFormat支持；@Valid支持，读写XML的支持(JAXB)；读写json格式的支持(jackson)
+
+**注意**：
+
+在以后使用类似```<mvc:... />```都可以加上```<mvc:annotation-driven />```
+
+## # springmvc中的form标签
+
+**简介**：
+
+在使用springmvc的时候我们可以使用spring封装的一系列表单标签。这些标签都可以访问到ModelMap中的内容
+
+**作用**：
+
+第一是它会自动的绑定来自Model中的一个属性值到当前form对应的实体对象；第二是它支持我们在提交表单的时候使用除get和post外的其它方法进行提交，包括DELETE和PUT。
+
+**使用场景**：
+
+需要使用form表单展示数据时，才使用spring封装的form。
+
+```
+
+# 基本用法实例
+
+# request jsp
+<a href="${pageContext.request.contextPath}/update/1" target="_blank">更新用户</a>
+
+# domain user
+public class User {
+   private String name;
+   private int age;
+
+   public String getName() {
+      return name;
+   }
+
+   public void setName(String name) {
+      this.name = name;
+   }
+
+   public int getAge() {
+      return age;
+   }
+
+   public void setAge(int age) {
+      this.age = age;
+   }
+
+   @Override
+   public String toString() {
+      return "User{" + "name='" + name + '\'' + ", age=" + age + '}';
+   }
+}
+
+# Controller action
+@Controller
+public class MyController {
+
+   @RequestMapping("update/{id}")
+   public String update(@PathVariable Integer id, Model model){
+      System.out.println(id);
+      User user = new User();
+      user.setName("ipso1");
+      user.setAge(20);
+      model.addAttribute("user", user);
+      return "result";
+   }
+}
+
+# result jsp
+<%@ page contentType="text/html;charset=UTF-8" language="java" %>
+<%@taglib uri="http://www.springframework.org/tags/form" prefix="fm"%>
+<html>
+<head>
+    <title>Result</title>
+</head>
+<body>
+<div style="width: 700px; margin: auto; padding-top: 20px; padding-bottom: 40px">
+    <h1>Result</h1>
+    <%-- 如果不写modelAttribute="user"，默认到model中找的是modelAttribute="command",如果没有就报错 --%>
+    <fm:form modelAttribute="user">
+        <fm:input path="name"/>
+        <fm:input path="age"/>
+    </fm:form>
+</div>
+</body>
+</html>
+
+```
+
+**radiobutton单选框、checkboxs多选框、select下拉列表**：
+
+```java
+
+# 基本用法实例
+
+# request jsp
+<a href="${pageContext.request.contextPath}/update/1" target="_blank">更新用户</a>
+
+# User javaBean
+public class User {
+   private String name;
+   private int age;
+   private int gender;
+   private String[] hobby;
+   private Pet pet;
+
+   getter and setter
+
+   tostring()
+}
+
+# Pet javaBean
+public class Pet {
+   private String name;
+   private int id;
+
+   getter and setter
+
+   tostring()
+}
+
+# Controller
+@Controller
+public class MyController {
+
+   @RequestMapping("update/{id}")
+   public String update(@PathVariable Integer id, Model model){
+      System.out.println(id);
+
+      // 所有爱好列表
+      ArrayList<Object> hobbyList = new ArrayList<>();
+      hobbyList.add("篮球");
+      hobbyList.add("足球");
+      hobbyList.add("棒球");
+      model.addAttribute("allhobby", hobbyList);
+
+      // 宠物列表
+      ArrayList<Object> petList = new ArrayList<>();
+      Pet pet1 = new Pet();
+      pet1.setId(1);
+      pet1.setName("dog");
+
+      Pet pet2 = new Pet();
+      pet2.setId(2);
+      pet2.setName("pig");
+
+      Pet pet3 = new Pet();
+      pet3.setId(3);
+      pet3.setName("cat");
+
+      petList.add(pet1);
+      petList.add(pet2);
+      petList.add(pet3);
+
+      model.addAttribute("petList", petList);
+
+      // 用户自己的信息
+      User user = new User();
+      user.setName("ipso1");
+      user.setAge(20);
+      user.setGender(1);
+      user.setPet(pet2);
+      String[] hobby = new String[]{"篮球", "足球"}; // 我的爱好
+      user.setHobby(hobby);
+      model.addAttribute("user", user);
+
+      return "result";
+   }
+
+   @RequestMapping("update2")
+   public String update2(User user, Model model){
+      System.out.println(user);
+      model.addAttribute("user", user);
+      return "result1";
+   }
+}
+```
+
+```jsp
+# result jsp
+<%@ page contentType="text/html;charset=UTF-8" language="java" %>
+<%@taglib uri="http://www.springframework.org/tags/form" prefix="fm"%>  # 不要忘记
+<html>
+<head>
+    <title>Result</title>
+</head>
+<body>
+<div style="width: 700px; margin: auto; padding-top: 20px; padding-bottom: 40px">
+    <h1>Result</h1>
+    <%-- 如果不写modelAttribute="user"，默认到model中找的是modelAttribute="command",如果没有就报错 --%>
+    <%-- action默认是从什么地址来返回什么地址，一般都是重新设置 --%>
+    <fm:form modelAttribute="user" action="${pageContext.request.contextPath}/update2">
+        姓名：<fm:input path="name"/> <br>
+        年龄：<fm:input path="age"/> <br>
+
+        <%-- 单选框 path对应属性名，value对应属性值 --%>
+        性别：<fm:radiobutton path="gender" value="0" label="男" />
+        <fm:radiobutton path="gender" value="1" label="女" /><br>
+
+        <%-- 复选框 path是user的hobby属性的值，items是所有爱好的集合 --%>
+        爱好：<fm:checkboxes path="hobby" items="${allhobby}" /> <br>
+
+        <%-- 下拉列表 path:设置当把表单提交的时候把itemValue的值传给pet对象对应的属性 --%>
+        <%-- items:数据来源 --%>
+        <%-- itemValue:提交的值 --%>
+        <%-- itemLabel:视图显示的值 --%>
+        <fm:select path="pet.id" items="${petList}" itemValue="id" itemLabel="name" /><br>
+
+        <input type="submit" value="修改">
+    </fm:form>
+</div>
+</body>
+</html>
+
+```
+
+## # 服务器端表单验证
+
+**JSR**:
+
+JSR 303是java为bean数据合法性校验提供的标准框架，已经包含在javaEE 6.0中；JSR 303通过在bean属性上标注类似于@NotNull、@Max等标准的注解指定校验规则，并通过标准的验证接口对bean进行验证。
+
+**Hibernate Validator**:
+
+Hibernate Validator实现了JSR 303的接口，是JSR 303的一个参考实现除了支持所有标准的验证注解外，它还支持其它的扩展注解，比如@Email注解、@Length(min=,max=)等。
+
+### 使用Hibernate Validator
+
+* 在配置文件中写上```<mvc:annotation-driven>```
+* 在模型中添加对应的校验规则
+* 在处理器方法的入参标记@valid注解即可
+* 错误信息页回显
+
+**验证数据，并获取验证信息**:
+
+```java
+
+/* 模型类中的属性 */
+
+@NotNull(message = "名字不能为空")  // 不允许为空
+private String name;
+
+@NotNull(message = "年龄不能为空")
+@Max(value = 150, message = "请输入合法的年龄") // 设置年龄允许的最大值
+private int age;
+
+@Email(message = "请输入正确的邮箱") // 验证邮箱
+private String email;
+
+@Pattern(regexp = "^1(3|4|5|7|8|9)\\d{9}$") // 匹配一个正则表达式
+private String phone;
+
+/* Controller中action */
+
+/**
+ * 打印修改后的数据
+ * 其中@Valid，是对提交过来的数据进行验证，验证规则已经在User对象中
+ * BindingResult用来接收验证结果
+ * @param user 用户对象模型
+ * @param model Model模型
+ * @return 视图
+ */
+@RequestMapping("update2")
+public String update2(@Valid User user, BindingResult result, Model model){
+  System.out.println(user);
+  List<FieldError> fieldErrors = result.getFieldErrors(); // 接收并存储验证结果
+  for (FieldError fieldError:fieldErrors) { // 遍历打印验证结果，及错误提示信息
+     System.out.println(fieldError.getField() + ":" + fieldError.getDefaultMessage());
+  }
+  model.addAttribute("user", user);
+  return "result1";
+}
+
+```
+
+**回显验证信息**:
+
+在Controller中通过result.getErrorCount() != 0 来判断是否有验证为通过的数据
+
+```jsp
+
+# 使用了spring封装的form标签
+# 举两个例子其它类似,注意看标签的属性和属性值
+
+姓名：<fm:input path="name"/> <fm:errors path="name" /><br>
+年龄：<fm:input path="age"/> <fm:errors path="age" /> <br>
+
+```
+
+**使用常规form标签**:
+
+我们知道spring封装的标签的使用场景是用表单显示数据，然后修改数据再提交，然后进行服务器端的数据验证，有验证错误就回到提交数据的界面，此过程又要重新传一次数据，其实验证错误信息springmvc已经在回显数据时帮我们写到了model中，这个可以断点调试查看model信息看到。所以我们可以在原来的页面中用```<error>```标签显示错误信息。
+
+所以我们可以效仿上面原理，在普通form表单提交接收数据后对数据进行验证，如果有验证未通过，则获取验证错误信息，并将错误信息手动存入model，这样就可以在普通form表单中接收到错误信息了。写的形式建议是：
+
+```java
+
+public String commitData(@Valid User user, BindingResult result, Model model){
+  List<FieldError> fieldErrors = result.getFieldErrors(); // 接收并存储验证结果
+  if (result.getErrorCount() != 0){
+    for (FieldError fieldError:fieldErrors) { // 遍历打印验证结果，及错误提示信息
+      model.addAttribute(fieldError.getField(), fieldError.getDefaultMessage()); // 建议使用这个key
+    }
+    return "原提交页"
+  }
+  return "验证通过后的去向"
+}
+```
+
+## # 静态资源访问
+
+当我们去访问静态文件时出现了错误，其实是因为我们在web.xml配置文件设置```<servlet-mapping>```时，设置了```<url-pattern>/</url-pattern>```,它将图片等资源全部过滤了。解决办法是：在springmvc.xml配置文件中加上```<mvc:default-servlet-handler />```, 作用是开放静态资源的访问，判断访问是否是静态资源，是就放行，不是就去@RequestMapping中匹配。

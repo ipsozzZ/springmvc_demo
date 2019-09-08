@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="springmvc4 (2)">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/web/WEB-INF/lib/classmate.jar!/" />
+      <root url="jar://$PROJECT_DIR$/web/WEB-INF/lib/hibernate-validator-5.jar!/" />
+      <root url="jar://$PROJECT_DIR$/web/WEB-INF/lib/hibernate-validator-annotation-processor-5.jar!/" />
+      <root url="jar://$PROJECT_DIR$/web/WEB-INF/lib/jboss-logging-3.1.1.jar!/" />
+      <root url="jar://$PROJECT_DIR$/web/WEB-INF/lib/validation-api-1.1.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
