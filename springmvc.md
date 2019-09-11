@@ -1055,4 +1055,625 @@ public String commitData(@Valid User user, BindingResult result, Model model){
 
 ## # 静态资源访问
 
+**方式一**：
+
 当我们去访问静态文件时出现了错误，其实是因为我们在web.xml配置文件设置```<servlet-mapping>```时，设置了```<url-pattern>/</url-pattern>```,它将图片等资源全部过滤了。解决办法是：在springmvc.xml配置文件中加上```<mvc:default-servlet-handler />```, 作用是开放静态资源的访问，判断访问是否是静态资源，是就放行，不是就去@RequestMapping中匹配。
+
+**方式二（开发中常用）**：
+
+采用spring自带```<mvc:resources>```方法
+
+配置：
+
+```xml
+
+<mvc:annotation-driven />
+<mvc:resources location="/images/" mapping="/img/**" />
+<mvc:resources location="/js/" mapping="/js/**" />
+<mvc:resources location="/css/" mapping="/css/**" />
+
+```
+
+## # json格式数据
+
+### 导入jar包
+
+jackson-annotation jar
+
+jackson-core jar
+
+jackson-databind jar
+
+### 返回Json
+
+在Controller方法中使用注解@ResponseBady即可，可以返回json格式的：一个对象；一个集合；一个map
+
+### 表单序列化
+
+**不使用插件序列化表单(默认序列化方法)**：
+
+得到key=value&key1=value1...格式的字符串
+
+```html
+
+<form id="Form">
+  姓名：<input type="text" name="name"> <br>  // <!-- 填了ipso -->
+  年龄：<input type="text" name="age"> <br>  //  <!-- 填了20 -->
+
+  爱好：<input type="checkbox" name="hobby" value="lq">篮球 <!-- 选棒球 -->
+  <input type="checkbox" name="hobby" value="bq"> 棒球
+  <input type="checkbox" name="hobby" value="zq"> 足球 <br>
+
+  <input type="button" id="Formbtn" value="提交">
+</form>
+
+```
+
+```js
+
+$("#Formbtn").click(function () {
+  var serialize = $("#Form").serialize();
+  console.log(serialize)
+})
+
+# 打印结果：name=ipso1&age=20&hobby=bq
+# 选中两个爱好时的结果：name=ipso1&age=20&hobby=bq&hobby=zq
+
+```
+
+**使用js系列化form的插件**：
+
+使用插件得到的是json格式的对象数据，并且会将多选框的值放入数组中
+
+```HTML
+
+<head>
+  <title>REQUEST</title>
+  <script type="text/javascript" src="${pageContext.request.contextPath}/js/jquery-3.0.0.min.js"></script>
+</head>
+
+<body>
+<form id="Form">
+  姓名：<input type="text" name="name"> <br>  // <!-- 填了ipso -->
+  年龄：<input type="text" name="age"> <br>  //  <!-- 填了20 -->
+
+  爱好：<input type="checkbox" name="hobby" value="lq">篮球 <!-- 选棒球 -->
+  <input type="checkbox" name="hobby" value="bq"> 棒球
+  <input type="checkbox" name="hobby" value="zq"> 足球 <br>
+
+  <input type="button" id="Formbtn" value="提交">
+</form>
+<input type="button" id="formbtn" value="发送form">
+
+<script>
+
+<!-- js插件(序列化表单为json格式并且键值对的形式为key:value) -->
+(function($){
+  $.fn.serializeJson=function(){
+    var serializeObj={};
+    var array=this.serializeArray();
+    var str=this.serialize();
+    $(array).each(function(){
+      if(serializeObj[this.name]){
+        if($.isArray(serializeObj[this.name])){
+            serializeObj[this.name].push(this.value);
+        }else{
+            serializeObj[this.name]=[serializeObj[this.name],this.value];
+        }
+      }else{
+          serializeObj[this.name]=this.value;
+      }
+    });
+    return serializeObj;
+  };
+})(jQuery);
+
+
+$(function () {
+
+  <!-- 序列化插件方法调用 -->
+  $("#Formbtn").click(function () {
+    var serialize = $("#Form").serialize();
+    console.log(serialize)
+    $.post("${pageContext.request.contextPath}/formJson", serialize, function (data) {
+      console.log(data)
+    })
+  })
+
+})
+</script>
+
+</body>
+
+# 使用插件后的序列化结果（爱好选中两个）： {name: "ipso", age: "22", hobby: Array(2)}
+# {name: "ipso", age: "22", hobby: Array(2)}为json格式
+
+```
+
+```java
+
+# Controller
+# 注意这里返回String特殊情况程序会报错 (当json数据中包含数组或者其它集合数据结构时就会报错)
+
+// 如果前端设置了返回格式必须为json(dataType="json")，则在后端返回的类型必须不为字符串，即使用了@ResponseBody,也会报错
+@RequestMapping("formJson")
+@ResponseBody
+public String formJson(User user){
+  System.out.println(user);
+  return "good";
+}
+
+/**
+ * 接收表单数据
+ * 前端在传参时设置了dataType="json"时，则不能使用String返回
+ * 接收json格式的数据一定要使用@RequestBody修饰参数
+ * 返回json格式的数据必须使用@ResponseBody修饰方法
+ * @param user 用户信息
+ * @return 返回json格式String
+ */
+@RequestMapping("formJson")
+@ResponseBody
+public User formJson(User user){
+  System.out.println(user);
+  return user;
+}
+
+```
+
+### @RequestBody接收json数据
+
+上面说到系列化后给控制器发数据时，遇到复杂类型的数据就会报错，所以我们需要在发送请求的时候就要指定使用json格式发送数据，在控制器使用RequestBody接收json数据。这样就可以接收复杂类型的数据了。
+
+**新问题**：
+
+* 问题描述
+
+在上面解决了复杂类型报错问题后又有了新的问题，上面解决是将form表单的数据以json格式封装起来，再由json对象数据通过JSON.stringify(),，转成string类型的json发给服务器，但是在封装同name值(即多选控件)时有两种情况：1. 选中一个选项则json被存为string类型，多个则用数组来存，这导致在后端接收数据时可能产生类型不一致的错误，从而中止了程序。
+
+* 解决办法
+
+可以用js在获取form表单数据并做序列化后将多选框的值做一下判断，如果只选中一个(即在序列化结果中类型为String)就使用js将其由String转换为数组类型，再进行传值。
+
+* 核心代码演示
+
+```
+
+$(function () {
+  $("#Formbtn").click(function () {
+    var serialize = $("#Form").serializeJson();
+    console.log(serialize)
+    console.log(JSON.stringify(serialize))
+
+    /* 如果存在多选框ze则进行if判断，否则可能会报错 */
+    if(typeof(serialize.hobby) == "string"){
+      serialize.hobby = new Array(serialize.hobby);
+    }
+
+    $.ajax({
+      type: "post",
+      url: "${pageContext.request.contextPath}/formJson",
+      data: JSON.stringify(serialize), // json string
+      contentType: 'application/json',
+      success: function (data) {
+          console.log(data)
+      }
+    })
+  })
+
+})
+
+```
+
+**知识扩展**：
+
+EL表达式(Expression language):
+在JSP中访问模型对象是通过EL表达式的语法来表达。所有EL表达式的格式都是以“${}”表示。例如，${ userinfo}代表获取变量userinfo的值。当EL表达式中的变量不给定范围时，则默认在page范围查找，然后依次在request、session、application范围查找。也可以用范围作为前缀表示属于哪个范围的变量，例如：${ pageScope. userinfo}表示访问page范围中的userinfo变量。
+
+[ ]与.运算符:
+
+EL 提供“.“和“[ ]“两种运算符来存取数据。
+当要存取的属性名称中包含一些特殊字符，如 . 或 - 等并非字母或数字的符号，就一定要使用“[ ]“。例如：
+${ user. My-Name}应当改为${user["My-Name"]}
+如果要动态取值时，就可以用“[ ]“来做，而“.“无法做到动态取值。例如：
+${sessionScope.user[data]}中data 是一个变量
+
+EL存取变量数据的方法很简单，例如：${username}。它的意思是取出某一范围中名称为username的变量。
+因为我们并没有指定哪一个范围的username，所以它会依序从Page、Request、Session、Application范围查找。
+假如途中找到username，就直接回传，不再继续找下去，但是假如全部的范围都没有找到时，就回传""
+
+注意 <%@ page isELIgnored="true" %> 表示是否禁用EL语言,TRUE表示禁止.FALSE表示不禁止.JSP2.0中默认的启用EL语言。
+
+全局禁用EL表达式，在web.xml中进行如下配置：
+
+```xml
+
+<jsp-config>
+<jsp-property-group>
+<url-pattern>*.jsp</url-pattern>
+<el-ignored>true</el-ignored>
+</jsp-property-group>
+</jsp-config>
+
+```
+
+## # 文件操作
+
+### 获取文件信息
+
+**知识积累**：
+
+encodeType用来规定数据传递的类型（MIME编码），**默认值是application/x-www-form-urlencoded，不能用于文件上传，只有使用了multipart/form-data，才能完整的传递文件数据。**，注意:**application/x-www-form-urlencoded不是不能上传文件，是只能上传文本格式的文件，multipart/form-data是将文件(input值)以二进制的形式上传，这样可以实现多种类型的文件上传。**
+
+enctype(设置了header中的Content-Type)：规定了form表单在发送到服务器时候编码方式，有如下的三个值。
+
+1、application/x-www-form-urlencoded: 默认的编码方式。但是在用文本的传输和MP3等大型文件的时候，使用这种编码就显得 效率低下。
+
+2、multipart/form-data: 指定传输数据为二进制类型，比如图片、mp3、文件。
+
+3、text/plain: 纯文体的传输。空格转换为 “+” 加号，但不对特殊字符编码。
+
+## # 视图解析器(ViewResolver)
+
+**视图解析器**：
+
+请求处理方法执行完成后，最终返回一个ModelAndView对象，对于哪些返回String, View或ModelMap等类型的处理方法spring MVC 也会在内部将它们装配成一个ModelAndView对象，它包含了模型名和模型对象的视图。Spring MVC借助视图解析器(ViewResolver)得到最终的视图对象View,最终的视图可以是jsp
+
+## # 视图
+
+视图的作用是渲染模型数据，将模型中的数据以某种形式显示给客户，视图对象由视图解析器负责实例化；在org.springframework.web.servlet 包中定义了一个高度抽象的View接口，正真起作用的是该接口的实现类InternalResourceView(其作用是将jsp或其它资源封装成一个视图；是InternalResourceViewResoler默认使用的实现类)
+
+## # 文件下载实例
+
+```html
+
+<div style="width: 700px; margin: auto; padding-top: 20px; padding-bottom: 40px">
+  <a href="${pageContext.request.contextPath}/download/my.jpg">下载my.jpg</a><br>
+  <a href="${pageContext.request.contextPath}/download/aim.txt">下载aim.txt</a>
+</div>
+
+```
+
+```java
+
+// 在项目web目录中有images目录，该目录中有文件夹中有my.jpg图片文件和aim.txt文本文件
+
+/**
+ * 获取rest参数时如果参数有后缀如.jpg等需要使用@RequestMapping("download/{filename:.+}")
+ * 否则接收不到参数
+ * @param filename 文件名
+ * @return return
+ */
+@RequestMapping("download/{filename:.+}")
+public ResponseEntity download(@PathVariable String filename, HttpSession session) throws Exception {
+  System.out.println(filename);
+
+  // 1. 获取文件路径
+  ServletContext servletContext = session.getServletContext();
+  String realPath = servletContext.getRealPath("/images/" + filename);
+
+  // 2. 把文件读到程序
+  InputStream io = new FileInputStream(realPath);
+  filename = URLEncoder.encode(filename, "UTF-8"); // 解决文件名中文乱码问题
+  byte[] body = new byte[io.available()];
+  io.read(body); // 将body中的数据读到io中
+
+  // 3. 创建响应头
+  HttpHeaders httpHeaders = new HttpHeaders();
+  /* 设置文件以附件的形式下载 */
+  httpHeaders.add("content-Disposition", "attachment;filename=" + filename);
+
+  ResponseEntity<byte[]> responseEntity = new ResponseEntity<>(body,httpHeaders, HttpStatus.OK);
+
+  return responseEntity;
+}
+
+```
+
+## # 文件上传
+
+Spring MVC为文件上传提供了直接的支持，是通过即插即用的MultipartResovler实现的；MultipartResovler是一个接口；Spring MVC上下文中默认没有装配MultipartResovler；如果想要使用Spring 的文件上传功能就必须要自己下载相关jar包，然后自己到配置文件当中装配到Spring MVC当中。
+
+**上传步骤**：
+
+1. 导入jar包(jar包是com.springsource.apache.commons包下的fileupload、io、logging jar包)
+2. 在springmvc.xml配置文件当中装配MultipartResovler
+3. 实现上传代码
+
+### 单文件上传
+
+```html
+
+<form action="${pageContext.request.contextPath}/upload" method="post" enctype="multipart/form-data">
+  <input type="file" name="file">
+
+  <input type="submit" value="上传图片">
+</form>
+
+```
+
+```java
+
+/**
+ * 实现文件上传
+ * @param file CommonsMultipartFile对象，用来获取form-data表单提交的file文件
+ * @return 跳转成功页
+ * @throws Exception transferTo异常处理
+ */
+@RequestMapping("upload")
+public String upload(@RequestParam("file") CommonsMultipartFile file, HttpSession session){
+   System.out.println("表单项name属性：" + file.getName()); // 获取文件名
+   System.out.println("文件大小：" + file.getSize());
+   System.out.println("文件类型：" + file.getContentType());
+   System.out.println("文件名：" + file.getOriginalFilename());
+
+   // 确定文件路径
+   ServletContext context = session.getServletContext();
+   String realPath = context.getRealPath("/upload");  // 建议使用URL url = contxt.getResource("/upload")获取文件路径
+   System.out.println(realPath);
+   // 变成程序中的路径
+   File uploadPath = new File(realPath);
+   if (!uploadPath.exists()) // 判断路径是否存在，不在就创建路径
+      uploadPath.mkdirs();
+
+   // 最终路径 路径+文件名
+   String fileName = file.getOriginalFilename();
+   uploadPath = new File(uploadPath + "/" + fileName);
+
+   // 开始上传文件
+   try {
+      file.transferTo(uploadPath);
+   } catch (IOException e) {
+      e.printStackTrace();
+   }
+
+   return "success";
+}
+
+```
+
+### 多文件上传
+
+使用WebUploader在前端实现多文件上传，java代码与单文件上传类似
+
+## # 异常处理
+
+使用@ExceptionHandler修饰方法，其value值可以指定异常的类型，方法接收Exception参数，跳转自定义异常页。
+
+```java
+
+@Controller
+public class ExceptionTest {
+
+  /**
+   * 测试异常，这里抛出算术异常
+   * 所以会先去找算术异常，如果没有算术异常就找运行时异常(RuntimeException),再没有就找Exception异常
+   * 如果都没有，就找注解@ControllerAdvice(标记为异常处理控制器类)修饰的类中的异常处理
+   * @return return
+   */
+  @RequestMapping("exception")
+  public String exceptionTest(){
+    int sum = 3 / 0;
+    return "success";
+  }
+
+  /**
+   * 接收异常并处理异常
+   * @param ex 接收的异常
+   * @param model model
+   * @return return
+   */
+  @ExceptionHandler(value = ArithmeticException.class)
+  public String doException(Exception ex, Model model){
+    System.out.println(ex.getMessage());
+    model.addAttribute("message", ex.getMessage());
+    return "error";
+  }
+
+   /**
+    * 接收异常并处理异常
+    * @param ex 接收的异常
+    * @param model model
+    * @return return
+    */
+   @ExceptionHandler(value = RuntimeException.class)
+   public String doException1(Exception ex, Model model){
+      System.out.println(ex.getMessage());
+      model.addAttribute("message", ex.getMessage());
+      return "error";
+   }
+
+   /**
+    * 接收异常并处理异常
+    * @param ex 接收的异常
+    * @param model model
+    * @return return
+    */
+   @ExceptionHandler(value = Exception.class)
+   public String doException2(Exception ex, Model model){
+      System.out.println(ex.getMessage());
+      model.addAttribute("message", ex.getMessage());
+      return "error";
+   }
+
+}
+
+## # 国际化处理(语言切换)
+
+1. 添加源文件
+
+在resource文件夹中创建国际化源文件：文件名格式是(添加中英文切换)：任意字符串_en_US.properties；任意字符串_zh_CN.properties
+
+
+2. 导入jar包
+
+jstl.jar和standard.jar
+
+3. springmvc.xml中添加配置
+
+```xml
+
+<!-- 中英文切换配置 -->
+<bean id="messageSource" class="org.springframework.context.support.ResourceBundleMessageSource" >
+  <property name="basename" value="ipso" />
+</bean>
+
+```
+
+4. 在页面中编写标签
+
+```jsp
+
+<%@ page contentType="text/html;charset=UTF-8" language="java" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/fmt" prefix="fmt" %>
+<html>
+<head>
+    <title>local</title>
+</head>
+<body>
+<h1>local</h1>
+<hr>
+<fmt:message key="welcome" />
+<fmt:message key="name" />
+</body>
+</html>
+
+```
+
+### 中英文切换
+
+```xml
+
+# springmvc.xml
+<!-- 中英文切换配置 -->
+<bean id="messageSource" class="org.springframework.context.support.ResourceBundleMessageSource" >
+  <property name="basename" value="ipso" />
+</bean>
+
+<!-- 配置Session本地解析器 -->
+<bean id="localResolver" class="org.springframework.web.servlet.i18n.SessionLocaleResolver"></bean>
+
+<!-- 拦截器 -->
+<mvc:interceptors>
+  <bean class="org.springframework.web.servlet.i18n.LocaleChangeInterceptor">
+    <!-- <a href="?language(作为下面的value值)=zh_CN"><fmt:message key="language.cn" /> </a> -->
+    <property name="paramName" value="language" />
+  </bean>
+</mvc:interceptors>
+
+```
+
+```
+
+# ipso_en_US.properties
+
+language.cn = China
+language.en = English
+welcome = welcome
+name = ipso
+
+# ipso_zh_CN.properties
+
+language.cn = 中国
+language.en = 英语
+welcome = 欢迎
+name = 启明
+
+```
+
+```jsp
+
+<%@ page contentType="text/html;charset=UTF-8" language="java" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/fmt" prefix="fmt" %>
+<html>
+<head>
+    <title>local</title>
+</head>
+<body>
+<h1>local</h1>
+<a href="?language=zh_CN"><fmt:message key="language.cn" /> </a>
+<a href="?language=en_US"><fmt:message key="language.en" /></a>
+
+<hr>
+<fmt:message key="welcome" />
+<fmt:message key="name" />
+</body>
+</html>
+
+```
+
+## # 过滤器
+
+### 实现过程
+
+```java
+
+/**
+ * 自定义拦截器 继承 HandlerInterceptor接口，并实现其中的方法
+ */
+public class MyFirstInterceptor implements HandlerInterceptor {
+
+   /**
+    * 当处理器方法执行前使用
+    * @param request 请求信息
+    * @param response 响应
+    * @param handler
+    * @return true 放行   false 拦截，不放行(就执行不了处理器方法了)
+    * @throws Exception
+    */
+   @Override
+   public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+      System.out.println("当处理器方法执行前使用");
+      return true;
+   }
+
+   /**
+    * 处理器方法执行(执行完，异常跳转不算执行完，所以不会触发此拦截)后调用
+    * @param request HttpServletRequest
+    * @param response HttpServletResponse
+    * @param handler object
+    * @param modelAndView ModelAndView
+    * @throws Exception
+    */
+   @Override
+   public void postHandle(HttpServletRequest request, HttpServletResponse response, Object handler, ModelAndView modelAndView) throws Exception {
+      System.out.println("处理器方法执行后调用");
+   }
+
+   /**
+    * 请求处理完毕后调用
+    * @param request HttpServletRequest
+    * @param response HttpServletResponse
+    * @param handler handler
+    * @param ex Exception
+    * @throws Exception
+    */
+   @Override
+   public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
+      System.out.println("请求处理完毕后调用");
+   }
+}
+
+```
+
+```xml
+
+<!-- 拦截器 -->
+<mvc:interceptors>
+  <bean class="org.springframework.web.servlet.i18n.LocaleChangeInterceptor">
+    <!-- <a href="?language(作为下面的value值)=zh_CN"><fmt:message key="language.cn" /> </a> -->
+    <property name="paramName" value="language" />
+  </bean>
+
+  <!-- 自定义拦截器，当前配置为拦截所有请求 -->
+  <bean class="live.ipso.springmvc5.interceptor.MyFirstInterceptor"></bean>
+
+  <!-- 指定拦截 -->
+  <mvc:interceptor>
+    <!--<mvc:exclude-mapping path="/local"/>--> <!-- 指定拦截路径"/local"不拦截，其它都拦截 -->
+    <mvc:mapping path="/local"/> <!-- 指定拦截路径"/local"，其它不拦截 -->
+    <bean class="live.ipso.springmvc5.interceptor.MyFirstInterceptor"></bean>
+  </mvc:interceptor>
+  
+</mvc:interceptors>
+
+```

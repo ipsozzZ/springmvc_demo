@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:mvc="http://www.springframework.org/schema/mvc"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.springframework.org/schema/context
+       http://www.springframework.org/schema/context/spring-context.xsd
+       http://www.springframework.org/schema/mvc
+       http://www.springframework.org/schema/mvc/spring-mvc.xsd
+       http://www.springframework.org/schema/aop
+       http://www.springframework.org/schema/aop/spring-aop.xsd
+       http://www.springframework.org/schema/tx
+       http://www.springframework.org/schema/tx/spring-tx.xsd">
+
+    <!-- 注解扫描 -->
+    <context:component-scan base-package="live.ipso" />
+
+    <!-- 配置属兔解析器的前后缀 -->
+    <bean class="org.springframework.web.servlet.view.InternalResourceViewResolver">
+        <property name="prefix" value="/page/" />
+        <property name="suffix" value=".jsp" />
+    </bean>
+
+    <!-- 由jsp跳转到jsp,有时会用到 -->
+    <!--<mvc:view-controller path="tojsp" view-name="default"/>-->
+
+    <!-- 静态资源访问放行 -->
+
+    <!-- 方法一(不常用) -->
+    <!--<mvc:default-servlet-handler />-->
+
+    <!-- 方法二(常用) -->
+    <mvc:resources location="/images/" mapping="/images/**" />
+    <!--<mvc:resources location="/js/" mapping="/js/**" />
+    <mvc:resources location="/css/" mapping="/css/**" />-->
+
+    <!-- 再次注册三个核心Bean，防止使用过<mvc:... />的配置时少了一个核心Bean -->
+    <mvc:annotation-driven />
+
+    <!-- w文件上传配置 实现文件上传bean -->
+    <!-- 注意：name(也可以该成id属性，两个那个都行，而且值一样)属性值固定为multipartResolver，不然报错 -->
+    <bean name="multipartResolver" class="org.springframework.web.multipart.commons.CommonsMultipartResolver">
+        <property name="defaultEncoding" value="UTF-8" />
+        <property name="maxUploadSize" value="10240000" />
+    </bean>
+
+    <!-- 中英文切换配置 -->
+    <bean id="messageSource" class="org.springframework.context.support.ResourceBundleMessageSource" >
+        <property name="basename" value="ipso" />
+    </bean>
+
+    <!-- 配置Session本地解析器 -->
+    <bean id="localResolver" class="org.springframework.web.servlet.i18n.SessionLocaleResolver"></bean>
+
+    <!-- 拦截器 -->
+    <mvc:interceptors>
+        <bean class="org.springframework.web.servlet.i18n.LocaleChangeInterceptor">
+            <!-- <a href="?language(作为下面的value值)=zh_CN"><fmt:message key="language.cn" /> </a> -->
+            <property name="paramName" value="language" />
+        </bean>
+
+        <!-- 自定义拦截器, 当前配置为拦截所有请求 -->
+        <!--<bean class="live.ipso.springmvc5.interceptor.MyFirstInterceptor"/>-->
+
+        <!-- 指定拦截 -->
+        <mvc:interceptor>
+            <!--<mvc:exclude-mapping path="/local"/>--> <!-- 指定拦截路径"/local"不拦截，其它都拦截 -->
+            <mvc:mapping path="/local"/> <!-- 指定拦截路径"/local"，其它不拦截 -->
+            <bean class="live.ipso.springmvc5.interceptor.MyFirstInterceptor"></bean>
+        </mvc:interceptor>
+
+        <bean class="live.ipso.springmvc5.interceptor.MySecondInterceptor" />
+    </mvc:interceptors>
+</beans>
